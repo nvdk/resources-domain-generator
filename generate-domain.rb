@@ -9,19 +9,29 @@ require 'erb'
 require 'ostruct'
 
 # options
-@options = { endpoint: "https://stad.gent/sparql", graph: "http://stad.gent/dcat/linked-data/", base: "http://stad.gent/dcat/linked-data/" }
-OptionParser.new do |opts|
+@options = { endpoint: nil, graph: nil, base: nil }
+opt_parser = OptionParser.new do |opts|
+  opts.on("-b", "--base-iri BASE", "base iri (required)") do |b|
+    @options[:base] = b.end_with?('/') ? b : "#{b}/"
+  end
   opts.on("-e", "--endpoint ENDPOINT", "endpoint (required)") do |e|
     @options[:endpoint] = e
   end
   opts.on("-g", "--graph GRAPH", "graph") do |e|
-    @options[:endpoint] = e
+    @options[:graph] = e
   end
-  opts.on("-b", "--base-iri BASE", "base iri") do |b|
-    @options[:base] = b.ends_with?('/') ? b : "#{b}/"
+  opts.on('-h', '--help', 'help') do
+    puts opt_parser
+    exit
   end
-end.parse!
+end
 
+opt_parser.parse!
+
+if @options[:endpoint].nil? || @options[:base].nil?
+  puts opt_parser
+  exit -1
+end
 
 # helpers
 class String
@@ -92,7 +102,7 @@ end
 
 
 # create domain.lisp
-puts "domain.lisp"
+puts ";; domain.lisp generated for #{@options[:endpoint]} (graph #{@options[:graph]}) "
 classes.each do |klass, c|
   properties = []
   relations = []
