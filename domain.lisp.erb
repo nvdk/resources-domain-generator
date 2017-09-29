@@ -9,7 +9,7 @@
                <% for relation in relations %>
                (<%= relation[:name] %> :via ,(s-url "<%= relation[:predicate] %>")
                       <% if relation[:inverse] %>:inverse t<% end %>                   
-                      :as <%= relation[:as] %>)
+                      :as "<%= relation[:as] %>")
                <% end %>
               )
    :resource-base(s-url "<%= base_iri %>")
