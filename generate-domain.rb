@@ -79,23 +79,24 @@ classes.each do |klass,c|
   c[:name] = iri_to_name(klass)
   c[:properties] = select("distinct ?prop ?dType", "?s a <#{klass}>; ?prop ?value. FILTER(isLiteral(?value)) BIND(datatype(?value) as ?dType)").map do |x|
     {
-      prop: x[:prop].value,
-      dtype: type_to_resource_type(x[:dType] ? x[:dType].value : "http://www.w3.org/2001/XMLSchema#string"),
+      predicate: x[:prop].value,
+      type: type_to_resource_type(x[:dType] ? x[:dType].value : "http://www.w3.org/2001/XMLSchema#string"),
       name: iri_to_name(x[:prop].value)
     }
   end
   c[:relations] =  select("distinct ?prop ?type", "?s a <#{klass}>; ?prop ?value. ?value a ?type  FILTER(isIri(?value))").map do |x|
     {
-      prop: x[:prop].value,
-      to: x[:type].value,
-      name: iri_to_name(x[:prop].value)
+      predicate: x[:prop].value,
+      as: iri_to_name(x[:prop].value),
+      name: iri_to_name(x[:type].value)
     }
   end
   c[:inverse_relations] =  select("distinct ?prop ?type", "?s a <#{klass}>. ?value ?prop ?s; a ?type ").map do |x|
     {
-      prop: x[:prop].value,
-      from: iri_to_name(x[:type].value),
-      name: iri_to_name(x[:prop].value)
+      predicate: x[:prop].value,
+      name: iri_to_name(x[:type].value),
+      as: iri_to_name(x[:type].value),
+      inverse: true
     }
   end
 end
@@ -104,38 +105,11 @@ end
 # create domain.lisp
 puts ";; domain.lisp generated for #{@options[:endpoint]} (graph #{@options[:graph]}) "
 classes.each do |klass, c|
-  properties = []
-  relations = []
-  c[:properties].each do |prop|
-    values = {
-      name: prop[:name],
-      type: prop[:dtype],
-      predicate: prop[:prop]
-    }              
-    properties << values
-  end
-  c[:relations].each do |rel|
-    values = {
-      name: rel[:name],
-      as: iri_to_name(rel[:prop]),
-      predicate: rel[:prop]
-    }              
-    relations << values
-  end
-  c[:inverse_relations].each do |rel|
-    values = {
-      name: rel[:from],
-      as: rel[:from],
-      predicate: rel[:prop],
-      inverse: true
-    }              
-    relations << values
-  end
   values = {
     name: c[:name],
     klass: klass,
-    properties: properties,
-    relations: relations,
+    properties: c[:properties],
+    relations: c[:relations] + c[:inverse_relations],
     base_iri: @options[:base],
     plural_name: c[:name] + "s" # todo
   }
