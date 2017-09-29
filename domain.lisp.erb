@@ -1,0 +1,17 @@
+(define-resource <%= name %>
+   :class (s-url "<%= klass %>")
+   :properties `(
+               <% for property in properties %>
+               (<%= property[:name]%> :<%= property[:type] %> ,(s-url "<%= property[:predicate] %>"))
+               <% end %>
+                )
+   :has-many `(
+               <% for relation in relations %>
+               (<%= relation[:name] %> :via ,(s-url "<%= relation[:predicate] %>")
+                      <% if relation[:inverse] %>:inverse t<% end %>                   
+                      :as <%= relation[:as] %>)
+               <% end %>
+              )
+   :resource-base(s-url "<%= base_iri %>")
+   :on-path "<%= plural_name %>"
+)

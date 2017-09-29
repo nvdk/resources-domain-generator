@@ -5,8 +5,10 @@
 
 require 'linkeddata'
 require 'optparse'
-require 'yaml'
+require 'erb'
+require 'ostruct'
 
+# options
 @options = { endpoint: "https://stad.gent/sparql", graph: "http://stad.gent/dcat/linked-data/", base: "http://stad.gent/dcat/linked-data/" }
 OptionParser.new do |opts|
   opts.on("-e", "--endpoint ENDPOINT", "endpoint (required)") do |e|
@@ -21,6 +23,7 @@ OptionParser.new do |opts|
 end.parse!
 
 
+# helpers
 class String
   def kebab_case
     self.gsub(/::/, '/').
@@ -59,13 +62,7 @@ def type_to_resource_type(iri)
   end
 end
 
-def template_replace(template, map)
-  map.each do |key, value|
-    template = template.gsub("{{#{key}}}",value)
-  end
-  template
-end
-
+# build data
 classes = Hash[ select("distinct ?class as ?c", "[] a ?class").map{|x| [x[:c].value, {properties: nil, relations: nil, inverse_relations: nil}] } ]
 
 classes.each do |klass,c|
@@ -92,38 +89,9 @@ classes.each do |klass,c|
     }
   end
 end
-puts classes.to_yaml
 
-resource_template = <<EOF 
-(define-resource {{name}} ()
-   :class (s-url "{{class}}")
-   :properties `({{properties}}
-                )
-   :has-many `({{relations}}
-              )
-   :resource-base(s-url "{{base_iri}}")
-   :on-path "{{plural_name}}"
-)
-EOF
 
-property_template = <<EOF 
-({{name}} :{{type}} , (s-url "{{predicate}}"))
-EOF
-
-relation_template = <<EOF 
-({{name}} :via ,(s-url "{{predicate}}")
-\t\t\t:as "{{name}}"
-\t\t)
-EOF
-
-inverse_relation_template = <<EOF 
-({{from}} :via ,(s-url "{{predicate}}")
-\t\t\t:inverse t
-\t\t\t:as "{{from}}"
-\t\t)
-EOF
-
-puts ""
+# create domain.lisp
 puts "domain.lisp"
 classes.each do |klass, c|
   properties = []
@@ -134,30 +102,33 @@ classes.each do |klass, c|
       type: prop[:dtype],
       predicate: prop[:prop]
     }              
-    properties << template_replace(property_template, values)
+    properties << values
   end
   c[:relations].each do |rel|
     values = {
       name: rel[:name],
-      to: rel[:to],
+      as: iri_to_name(rel[:prop]),
       predicate: rel[:prop]
     }              
-    relations << template_replace(relation_template, values)
+    relations << values
   end
   c[:inverse_relations].each do |rel|
     values = {
-      from: rel[:from],
-      predicate: rel[:prop]
+      name: rel[:from],
+      as: rel[:from],
+      predicate: rel[:prop],
+      inverse: true
     }              
-    relations << template_replace(inverse_relation_template, values)
+    relations << values
   end
   values = {
     name: c[:name],
-    class: klass,
-    properties: properties.join("\t\t"),
-    relations: relations.join("\t\t"),
+    klass: klass,
+    properties: properties,
+    relations: relations,
     base_iri: @options[:base],
     plural_name: c[:name] + "s" # todo
   }
-  puts template_replace(resource_template, values)
+  erb = ERB.new(File.read("domain.lisp.erb"))
+  puts erb.result(OpenStruct.new(values).instance_eval { binding })
 end
